@@ -1,63 +1,76 @@
 import pandas as pd
-df_clean = pd.read_csv('../data_csvs/rq1_results.csv')
-agg_clean = df_clean.groupby(['Model', 'Lang', 'Smell']).mean().reset_index()
-df_adv = pd.read_csv('../data_csvs/rq3_results.csv')
-agg_adv = df_adv.groupby(['Model', 'Lang', 'Smell', 'Ratio']).mean().reset_index()
+import numpy as np
 
-def get_arrow(a_val, c_val):
-    a_str = f'{a_val:.3f}'
-    c_str = f'{c_val:.3f}'
-    if a_str == c_str:
-        return '-'
-    elif a_val < c_val:
-        return '$\\downarrow$'
-    else:
-        return '$\\uparrow$'
+def main():
+    try:
+        df_clean_base = pd.read_csv('../results/rq1_results.csv')
+        df_clean_advtrain = pd.read_csv('../results/rq3_clean_results.csv')
+        df_adv_advtrain = pd.read_csv('../results/rq3_adv_results.csv')
+        
+        # RQ2 results to get adversarial base
+        df_adv_base = pd.read_csv('../results/rq2_results.csv')
+    except FileNotFoundError:
+        print("Could not find results files. Please run from table_generation directory.")
+        return
 
-def build_rq3_latex(metric, is_f1):
-    caption = 'Clean-Test F1 After Adversarial Training at Different Adversarial Ratios' if is_f1 else 'Clean-Test AUC-ROC After Adversarial Training at Different Adversarial Ratios'
-    label = '\\label{table_rq3_new}' if is_f1 else '\\label{table_rq3_auc}'
-    latex = f'\\begin{{table}}[H]\n\\caption{{{caption}}}\n{label}\n\\centering\\footnotesize\n\\resizebox{{\\textwidth}}{{!}}{{\n\\begin{{tabular}}{{llcccc|cccc}}\n\\hline\n\\cellcolor{{blue!5}} & \\cellcolor{{blue!5}} & \\multicolumn{{4}}{{c|}}{{\\cellcolor{{blue!5}}\\textbf{{CM}}}} & \\multicolumn{{4}}{{c}}{{\\cellcolor{{blue!5}}\\textbf{{CC}}}} \\\\\n\\cellcolor{{blue!5}}\\textbf{{Model}} & \\cellcolor{{blue!5}}\\textbf{{Lang}} & \\cellcolor{{blue!5}}\\textbf{{Base}} & \\cellcolor{{blue!5}}\\textbf{{10\\%}} & \\cellcolor{{blue!5}}\\textbf{{30\\%}} & \\cellcolor{{blue!5}}\\textbf{{50\\%}} & \\cellcolor{{blue!5}}\\textbf{{Base}} & \\cellcolor{{blue!5}}\\textbf{{10\\%}} & \\cellcolor{{blue!5}}\\textbf{{30\\%}} & \\cellcolor{{blue!5}}\\textbf{{50\\%}} \\\\\n\\hline\n'
-    for mod in ['RNN', 'CodeBERT', 'AE', 'Qwen']:
-        for lang in ['CSharp', 'Java']:
-            row = f'\\cellcolor{{blue!5}}{mod} & \\cellcolor{{blue!5}}{lang} '
-            for smell in ['CM', 'CC']:
-                c_row = agg_clean[(agg_clean['Model'] == mod) & (agg_clean['Lang'] == lang) & (agg_clean['Smell'] == smell)]
-                base = c_row['F1' if is_f1 else 'AUC'].values[0]
-                row += f'& \\cellcolor{{blue!5}}{base:.3f} '
-                for ratio in ['10%', '30%', '50%']:
-                    a_row = agg_adv[(agg_adv['Model'] == mod) & (agg_adv['Lang'] == lang) & (agg_adv['Smell'] == smell) & (agg_adv['Ratio'] == ratio)]
-                    adv_val = a_row['F1' if is_f1 else 'AUC'].values[0]
-                    arrow = get_arrow(adv_val, base)
-                    if arrow == '-':
-                        row += f'& \\cellcolor{{blue!5}}{adv_val:.3f} - '
-                    else:
-                        row += f'& \\cellcolor{{blue!5}}{adv_val:.3f} {arrow} '
-            row += '\\\\\n'
-            latex += row
-        latex += '\\hline\n'
-    latex += '\\end{tabular}}\n'
-    latex += '\\vspace{2mm}\n\\resizebox{\\textwidth}{!}{\n\\begin{tabular}{llcccc|cccc}\n\\hline\n\\cellcolor{blue!5} & \\cellcolor{blue!5} & \\multicolumn{4}{c|}{\\cellcolor{blue!5}\\textbf{FE}} & \\multicolumn{4}{c}{\\cellcolor{blue!5}\\textbf{MA}} \\\\\n\\cellcolor{blue!5}\\textbf{Model} & \\cellcolor{blue!5}\\textbf{Lang} & \\cellcolor{blue!5}\\textbf{Base} & \\cellcolor{blue!5}\\textbf{10\\%} & \\cellcolor{blue!5}\\textbf{30\\%} & \\cellcolor{blue!5}\\textbf{50\\%} & \\cellcolor{blue!5}\\textbf{Base} & \\cellcolor{blue!5}\\textbf{10\\%} & \\cellcolor{blue!5}\\textbf{30\\%} & \\cellcolor{blue!5}\\textbf{50\\%} \\\\\n\\hline\n'
-    for mod in ['RNN', 'CodeBERT', 'AE', 'Qwen']:
-        for lang in ['CSharp', 'Java']:
-            row = f'\\cellcolor{{blue!5}}{mod} & \\cellcolor{{blue!5}}{lang} '
-            for smell in ['FE', 'MA']:
-                c_row = agg_clean[(agg_clean['Model'] == mod) & (agg_clean['Lang'] == lang) & (agg_clean['Smell'] == smell)]
-                base = c_row['F1' if is_f1 else 'AUC'].values[0]
-                row += f'& \\cellcolor{{blue!5}}{base:.3f} '
-                for ratio in ['10%', '30%', '50%']:
-                    a_row = agg_adv[(agg_adv['Model'] == mod) & (agg_adv['Lang'] == lang) & (agg_adv['Smell'] == smell) & (agg_adv['Ratio'] == ratio)]
-                    adv_val = a_row['F1' if is_f1 else 'AUC'].values[0]
-                    arrow = get_arrow(adv_val, base)
-                    if arrow == '-':
-                        row += f'& \\cellcolor{{blue!5}}{adv_val:.3f} - '
-                    else:
-                        row += f'& \\cellcolor{{blue!5}}{adv_val:.3f} {arrow} '
-            row += '\\\\\n'
-            latex += row
-        latex += '\\hline\n'
-    latex += '\\end{tabular}}\n\\end{table}\n'
-    return latex
-print(build_rq3_latex('F1', True).strip())
-print()
-print(build_rq3_latex('AUC', False).strip())
+    agg_clean_base = df_clean_base.groupby(['Model', 'Lang', 'Smell']).mean(numeric_only=True).reset_index()
+    agg_clean_advtrain = df_clean_advtrain.groupby(['Model', 'Lang', 'Smell', 'Ratio']).mean(numeric_only=True).reset_index()
+    agg_adv_advtrain = df_adv_advtrain.groupby(['Model', 'Lang', 'Smell', 'Ratio']).mean(numeric_only=True).reset_index()
+    agg_adv_base = df_adv_base.groupby(['Model', 'Lang', 'Smell']).mean(numeric_only=True).reset_index()
+
+    models = ['RNN', 'CodeBERT', 'AE', 'Qwen']
+    langs = ['CSharp', 'Java']
+    ratios = ['10%', '30%', '50%']
+
+    def print_table(test_data_type, metric, base_agg, advtrain_agg):
+        print(f"\nRQ3: {metric} on {test_data_type} Test Data After Adversarial Training")
+        print("-" * 140)
+        
+        for smell_group in [('CM', 'CC'), ('FE', 'MA')]:
+            header = f"{'Model':<10} | {'Lang':<8} | "
+            for s in smell_group:
+                header += f" {s} Base |  {s} 10% |  {s} 30% |  {s} 50% | "
+            print(header)
+            print("-" * 140)
+            
+            for model in models:
+                for lang in langs:
+                    row_str = f"{model:<10} | {lang:<8} | "
+                    cells = []
+                    for smell in smell_group:
+                        if test_data_type == 'Clean':
+                            b_row = base_agg[(base_agg['Model'] == model) & (base_agg['Lang'] == lang) & (base_agg['Smell'] == smell)]
+                        else:
+                            b_row = base_agg[(base_agg['Model'] == model) & (base_agg['Lang'] == lang) & (base_agg['Smell'] == smell)]
+                            
+                        if len(b_row) > 0:
+                            b_val = b_row[metric].values[0]
+                            cells.append(f"{b_val:.3f}")
+                            
+                            for ratio in ratios:
+                                a_row = advtrain_agg[(advtrain_agg['Model'] == model) & (advtrain_agg['Lang'] == lang) & (advtrain_agg['Smell'] == smell) & (advtrain_agg['Ratio'] == ratio)]
+                                if len(a_row) > 0:
+                                    a_val = a_row[metric].values[0]
+                                    arrow = '-'
+                                    if round(a_val, 3) < round(b_val, 3): arrow = 'v'
+                                    elif round(a_val, 3) > round(b_val, 3): arrow = '^'
+                                    if (metric == 'F1' and b_val == 0.0) or (metric == 'AUC' and b_val == 0.5):
+                                        arrow = '-'
+                                    cells.append(f"{a_val:.3f} {arrow}")
+                                else:
+                                    cells.append(f"{'-':<7}")
+                        else:
+                            cells.extend([f"{'-':<7}"] * 4)
+                            
+                    row_str += " | ".join([f"{c:<7}" for c in cells])
+                    print(row_str)
+            print("-" * 140)
+
+    print_table('Clean', 'F1', agg_clean_base, agg_clean_advtrain)
+    print_table('Clean', 'AUC', agg_clean_base, agg_clean_advtrain)
+    
+    print_table('Adversarial', 'F1', agg_adv_base, agg_adv_advtrain)
+    print_table('Adversarial', 'AUC', agg_adv_base, agg_adv_advtrain)
+
+if __name__ == '__main__':
+    main()

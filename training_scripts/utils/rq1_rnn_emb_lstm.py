@@ -18,7 +18,7 @@ import numpy as np
 import gc
 import time
 import metrics_util
-import plot_util
+
 from sklearn.dummy import DummyClassifier
 DIM = '1d'
 C2V = False
@@ -27,7 +27,7 @@ if C2V:
     OUT_FOLDER = '..\\results\\rq1\\raw'
 else:
     TOKENIZER_OUT_PATH = '/root/autodl-tmp/cs_token_cpu3/'
-    OUT_FOLDER = '../data_csvs'
+    OUT_FOLDER = '../results'
 TRAIN_VALIDATE_RATIO = 0.7
 CLASSIFIER_THRESHOLD = 0.7
 
@@ -61,7 +61,7 @@ def embedding_lstm(data, config, smell, out_folder=OUT_FOLDER, dim=DIM, iteratio
             print(f'\n[Epoch {epoch + 1}] Val-Calibration: Max-F1={f1s[idx]:.4f} at Threshold={(thresh[idx] if idx < len(thresh) else 0.5):.4f}')
             sys.stdout.flush()
     earlystop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=10, verbose=1, mode='auto')
-    best_model_filepath = '../data_csvs/weights_best.rnn.' + smell + str(iteration) + '.keras'
+    best_model_filepath = '../results/weights_best.rnn.' + smell + str(iteration) + '.keras'
     if os.path.exists(best_model_filepath):
         print('deleting the old weights file..')
         os.remove(best_model_filepath)
@@ -123,7 +123,7 @@ def embedding_lstm(data, config, smell, out_folder=OUT_FOLDER, dim=DIM, iteratio
     prob = np.concatenate(all_probs, axis=0)
     print('[DEBUG] Prediction finished. Saving snapshots...')
     sys.stdout.flush()
-    snapshot_prefix = f'../data_csvs/snapshot_{smell}_{iteration}'
+    snapshot_prefix = f'../results/snapshot_{smell}_{iteration}'
     np.save(f'{snapshot_prefix}_prob.npy', prob)
     np.save(f'{snapshot_prefix}_labels.npy', data.eval_labels)
     print('[DEBUG] Applying threshold...')
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     smell_list = {'ComplexMethod'}
 
 def get_out_file_fixed(smell):
-    out_dir = '../data_csvs'
+    out_dir = '../results'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     c2v = 'c2v' if C2V else ''

@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import json
@@ -128,7 +131,7 @@ def eval_model(model, data_loader, device):
     return (np.array(probs), np.array(real_values))
 
 def run_rq2_codebert(lang, smell, mode, smoke=False):
-    res_file = f'../data_csvs/rq2_codebert_{smell}.csv'
+    res_file = f'../results/rq2_codebert_{smell}.csv'
     if os.path.exists(res_file):
         with open(res_file, 'r') as f:
             for line in f:
@@ -173,7 +176,7 @@ def run_rq2_codebert(lang, smell, mode, smoke=False):
     mcc = matthews_corrcoef(labels, preds)
     acc = accuracy_score(labels, preds)
     print(f'RESULT: {lang} {smell} CodeBERT [{mode}] -> F1(fixed): {f1_fixed:.4f}, F1(max): {f1_max:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
-    res_file = f'../data_csvs/rq2_codebert_{smell}.csv'
+    res_file = f'../results/rq2_codebert_{smell}.csv'
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{f1_fixed},{f1_max},{auc},{mcc},{acc}\n')
 if __name__ == '__main__':

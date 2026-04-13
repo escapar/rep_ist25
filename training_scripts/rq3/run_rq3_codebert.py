@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import json
@@ -192,7 +195,7 @@ def run_rq3_codebert(lang, smell, mode, ratio, smoke=False):
     mcc = matthews_corrcoef(labels, preds)
     acc = accuracy_score(labels, preds)
     print(f'RESULT: {lang} {smell} RQ3 CodeBERT [{mode}, ratio={ratio}] -> F1(fixed): {f1_fixed:.4f}, F1(max): {f1_max:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
-    res_file = f'../data_csvs/rq3_codebert_{smell}.csv'
+    res_file = f'../results/rq3_codebert_{smell}.csv'
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{ratio},{f1_fixed},{f1_max},{auc},{mcc},{acc}\n')
     print('Evaluating Defense on Pure Clean Test Set...')
@@ -214,7 +217,7 @@ def run_rq3_codebert(lang, smell, mode, ratio, smoke=False):
     c_mcc = matthews_corrcoef(c_labels, c_preds)
     c_acc = accuracy_score(c_labels, c_preds)
     print(f'CLEAN RESULT: {lang} {smell} RQ3 CodeBERT [{mode}, ratio={ratio}] -> F1(fixed): {c_f1_fixed:.4f}, F1(max): {c_f1_max:.4f}, AUC: {c_auc:.4f}, MCC: {c_mcc:.4f}, ACC: {c_acc:.4f}')
-    c_res_file = f'../data_csvs/rq3_clean_codebert_{smell}.csv'
+    c_res_file = f'../results/rq3_clean_codebert_{smell}.csv'
     with open(c_res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{ratio},{c_f1_fixed},{c_f1_max},{c_auc},{c_mcc},{c_acc}\n')
 if __name__ == '__main__':

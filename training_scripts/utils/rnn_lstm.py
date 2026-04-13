@@ -11,11 +11,11 @@ import numpy as np
 import gc
 import time
 import metrics_util
-import plot_util
+
 DIM = '1d'
 TRAINING_TOKENIZER_OUT_PATH = '../../data/tokenizer_out_cs/'
-RQ1_OUT_FOLDER = '../../data_csvs/rq1/raw'
-RQ2_OUT_FOLDER = '../../data_csvs/rq2/raw'
+RQ1_OUT_FOLDER = '../../results/rq1/raw'
+RQ2_OUT_FOLDER = '../../results/rq2/raw'
 EVAL_TOKENIZER_OUT_PATH = '../../data/tokenizer_out_java/'
 TRAIN_VALIDATE_RATIO = 0.7
 CLASSIFIER_THRESHOLD = 0.7

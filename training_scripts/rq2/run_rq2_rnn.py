@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import numpy as np
@@ -9,7 +12,7 @@ sys.path.append(os.path.abspath('program/dl_models'))
 import inputs
 import path_config
 DIM = '1d'
-OUT_FOLDER = os.path.abspath('../data_csvs')
+OUT_FOLDER = os.path.abspath('../results')
 
 def evaluate_rnn_rq2(lang, smell, mode):
     res_file = os.path.join(OUT_FOLDER, f'rq2_rnn_{smell}.csv')

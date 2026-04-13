@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import numpy as np
@@ -12,7 +15,7 @@ sys.path.append(os.path.abspath('program/dl_models'))
 import inputs
 import path_config
 DIM = '1d'
-OUT_FOLDER = os.path.abspath('../data_csvs')
+OUT_FOLDER = os.path.abspath('../results')
 BEST_PARAMS = {'ComplexMethod': {'emb_output': 32, 'layers': 1, 'lstm_units': 64, 'epochs': 24, 'dropout': 0.2}, 'ComplexConditional': {'emb_output': 32, 'layers': 1, 'lstm_units': 64, 'epochs': 3, 'dropout': 0.2}, 'FeatureEnvy': {'emb_output': 16, 'layers': 2, 'lstm_units': 64, 'epochs': 16, 'dropout': 0.2}, 'MultifacetedAbstraction': {'emb_output': 16, 'layers': 2, 'lstm_units': 128, 'epochs': 11, 'dropout': 0.2}}
 
 def build_rnn_model(max_features, config):

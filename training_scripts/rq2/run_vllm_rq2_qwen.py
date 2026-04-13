@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import json
@@ -13,7 +16,7 @@ RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
 
 def run_rq2_qwen_inference(lang, smell, mode, limit=LIMIT):
-    res_file = f'../data_csvs/rq2_qwen_{smell}.csv'
+    res_file = f'../results/rq2_qwen_{smell}.csv'
     if os.path.exists(res_file):
         with open(res_file, 'r') as f:
             for line in f:
@@ -73,7 +76,7 @@ def run_rq2_qwen_inference(lang, smell, mode, limit=LIMIT):
     mcc = matthews_corrcoef(labels, preds)
     auc = roc_auc_score(labels, probs) if len(set(labels)) > 1 else 0.0
     print(f'RESULT: {lang} {smell} Qwen [{mode}] -> F1: {f1:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
-    res_file = f'../data_csvs/rq2_qwen_{smell}.csv'
+    res_file = f'../results/rq2_qwen_{smell}.csv'
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{f1},{auc},{mcc},{acc}\n')
 if __name__ == '__main__':

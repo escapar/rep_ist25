@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import json
@@ -129,7 +132,7 @@ def run_fine_tuning(lang, smell, smoke=False):
     prec = precision_score(labels, preds)
     rec = recall_score(labels, preds)
     print(f'RESULT: {lang} {smell} CodeBERT -> F1: {f1:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}, PREC: {prec:.4f}, REC: {rec:.4f}')
-    res_file = f'../data_csvs/codebert_rq1_{smell}.csv'
+    res_file = f'../results/codebert_rq1_{smell}.csv'
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{f1},{auc},{mcc},{acc},{prec},{rec}\n')
 if __name__ == '__main__':

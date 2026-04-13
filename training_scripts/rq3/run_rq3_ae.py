@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import numpy as np
@@ -12,7 +15,7 @@ sys.path.append(os.path.abspath('program/dl_models'))
 import inputs
 import path_config
 DIM = '1d'
-OUT_FOLDER = os.path.abspath('../data_csvs')
+OUT_FOLDER = os.path.abspath('../results')
 
 def load_data_ae_rq3(lang, smell, mode, ratio):
     with open('../config/dataset_splits.json', 'r') as f:
@@ -119,7 +122,7 @@ def evaluate_ae_rq3(lang, smell, mode, ratio, layer, encoding, ep, threshold_val
     c_mcc = matthews_corrcoef(clean_eval_labels, c_preds)
     c_acc = accuracy_score(clean_eval_labels, c_preds)
     print(f'CLEAN RESULT: {lang} {smell} RQ3 AE [{mode}, ratio={ratio}] -> F1(fixed): {c_f1_fixed:.4f}, F1(max): {c_f1_max:.4f}, AUC: {c_auc:.4f}, MCC: {c_mcc:.4f}, ACC: {c_acc:.4f}')
-    c_res_file = f'../data_csvs/rq3_clean_ae_{smell}.csv'
+    c_res_file = f'../results/rq3_clean_ae_{smell}.csv'
     with open(c_res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{ratio},{c_f1_fixed},{c_f1_max},{c_auc},{c_mcc},{c_acc}\n')
 if __name__ == '__main__':

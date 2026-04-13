@@ -1,39 +1,56 @@
 import pandas as pd
-df_clean = pd.read_csv('../data_csvs/rq1_results.csv')
-agg_clean = df_clean.groupby(['Model', 'Lang', 'Smell']).mean().reset_index()
-df_adv = pd.read_csv('../data_csvs/rq2_results.csv')
-agg_adv = df_adv.groupby(['Model', 'Lang', 'Smell', 'Mode']).mean().reset_index()
+import numpy as np
 
-def get_arrow(a_val, c_val):
-    a_str = f'{a_val:.3f}'
-    c_str = f'{c_val:.3f}'
-    if a_str == c_str:
-        return '-'
-    elif a_val < c_val:
-        return '$\\downarrow$'
-    else:
-        return '$\\uparrow$'
+def main():
+    try:
+        df_clean = pd.read_csv('../results/rq1_results.csv')
+        df_adv = pd.read_csv('../results/rq2_results.csv')
+    except FileNotFoundError:
+        print("Could not find results files. Please run from table_generation directory.")
+        return
 
-def build_rq2_latex(metric, is_f1):
-    latex = f"\\begin{{table}}[!ht]\n\\caption{{Model {metric} Degradation on Adversarial Test Samples (By Language and Code Smell)}}\n\\label{{table_rq2_{('new' if is_f1 else 'auc')}}}\n\\centering\\resizebox{{\\textwidth}}{{!}}{{\n\\begin{{tabular}}{{lll|cc|cc|cc|cc}}\n\\hline\n\\cellcolor{{blue!5}} & \\cellcolor{{blue!5}} & \\cellcolor{{blue!5}} & \\multicolumn{{2}}{{c|}}{{\\cellcolor{{blue!5}}\\textbf{{CM}}}} & \\multicolumn{{2}}{{c|}}{{\\cellcolor{{blue!5}}\\textbf{{CC}}}} & \\multicolumn{{2}}{{c|}}{{\\cellcolor{{blue!5}}\\textbf{{FE}}}} & \\multicolumn{{2}}{{c}}{{\\cellcolor{{blue!5}}\\textbf{{MA}}}} \\\\\n\\cellcolor{{blue!5}} \\textbf{{Model}} & \\cellcolor{{blue!5}} \\textbf{{Lang}} & \\cellcolor{{blue!5}} \\textbf{{Attack}} & \\cellcolor{{blue!5}} \\textbf{{Clean}} & \\cellcolor{{blue!5}} \\textbf{{Attacked}} & \\cellcolor{{blue!5}} \\textbf{{Clean}} & \\cellcolor{{blue!5}} \\textbf{{Attacked}} & \\cellcolor{{blue!5}} \\textbf{{Clean}} & \\cellcolor{{blue!5}} \\textbf{{Attacked}} & \\cellcolor{{blue!5}} \\textbf{{Clean}} & \\cellcolor{{blue!5}} \\textbf{{Attacked}} \\\\\n\\hline\n"
+    agg_clean = df_clean.groupby(['Model', 'Lang', 'Smell']).mean(numeric_only=True).reset_index()
+    agg_adv = df_adv.groupby(['Model', 'Lang', 'Smell', 'Mode']).mean(numeric_only=True).reset_index()
+
+    models = ['RNN', 'CodeBERT', 'AE', 'Qwen']
+    langs = ['CSharp', 'Java']
     modes = ['Semantic', 'Structural', 'Hybrid', 'NLP']
-    for mod in ['RNN', 'CodeBERT', 'AE', 'Qwen']:
-        for lang in ['CSharp', 'Java']:
-            for mode in modes:
-                row_str = f'\\cellcolor{{blue!5}} {mod} & \\cellcolor{{blue!5}} {lang} & \\cellcolor{{blue!5}} {mode} & '
-                cells = []
-                for smell in ['CM', 'CC', 'FE', 'MA']:
-                    c_row = agg_clean[(agg_clean['Model'] == mod) & (agg_clean['Lang'] == lang) & (agg_clean['Smell'] == smell)]
-                    c_val = c_row['F1' if is_f1 else 'AUC'].values[0]
-                    a_row = agg_adv[(agg_adv['Model'] == mod) & (agg_adv['Lang'] == lang) & (agg_adv['Smell'] == smell) & (agg_adv['Mode'] == mode)]
-                    a_val = a_row['F1' if is_f1 else 'AUC'].values[0]
-                    arrow = get_arrow(a_val, c_val)
-                    cells.append(f'\\cellcolor{{blue!5}}{c_val:.3f} & \\cellcolor{{blue!5}}{a_val:.3f} {arrow}')
-                row_str += ' & '.join(cells) + ' \\\\\n'
-                latex += row_str
-            latex += '\\hline\n'
-    latex += '\\end{tabular}}\n\\end{table}\n'
-    return latex
-print(build_rq2_latex('F1', True).strip())
-print()
-print(build_rq2_latex('AUC', False).strip())
+    smells = ['CM', 'CC', 'FE', 'MA']
+
+    def print_table(metric):
+        print(f"\nRQ2: Model {metric} Degradation on Adversarial Test Samples")
+        print("-" * 120)
+        header = f"{'Model':<10} | {'Lang':<8} | {'Attack':<12} | "
+        header += " | ".join([f"{s + ' (Cln->Adv)':<17}" for s in smells])
+        print(header)
+        print("-" * 120)
+
+        for model in models:
+            for lang in langs:
+                for mode in modes:
+                    row_str = f"{model:<10} | {lang:<8} | {mode:<12} | "
+                    cells = []
+                    for smell in smells:
+                        c_row = agg_clean[(agg_clean['Model'] == model) & (agg_clean['Lang'] == lang) & (agg_clean['Smell'] == smell)]
+                        a_row = agg_adv[(agg_adv['Model'] == model) & (agg_adv['Lang'] == lang) & (agg_adv['Smell'] == smell) & (agg_adv['Mode'] == mode)]
+                        
+                        if len(c_row) > 0 and len(a_row) > 0:
+                            c_val = c_row[metric].values[0]
+                            a_val = a_row[metric].values[0]
+                            
+                            arrow = '-'
+                            if round(a_val, 3) < round(c_val, 3): arrow = 'v'
+                            elif round(a_val, 3) > round(c_val, 3): arrow = '^'
+                            
+                            cells.append(f"{c_val:.3f}->{a_val:.3f} {arrow}")
+                        else:
+                            cells.append(f"{'-':<17}")
+                    row_str += " | ".join([f"{c:<17}" for c in cells])
+                    print(row_str)
+            print("-" * 120)
+
+    print_table('F1')
+    print_table('AUC')
+
+if __name__ == '__main__':
+    main()

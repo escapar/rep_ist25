@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../utils')))
+
 import os
 import sys
 import time
@@ -13,7 +16,7 @@ import path_config
 import inputs
 import metrics_util
 DIM = '1d'
-OUT_FOLDER = os.path.abspath('../data_csvs')
+OUT_FOLDER = os.path.abspath('../results')
 os.makedirs(OUT_FOLDER, exist_ok=True)
 
 def run_ae_best(lang, smell, layer, encoding, ep, threshold_val):

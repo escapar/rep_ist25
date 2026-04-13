@@ -3,7 +3,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '../../'))
 CS_TOKENIZED_DATA = os.path.join(PROJECT_ROOT, 'data/tokenizer_cs_unique')
 JAVA_TOKENIZED_DATA = os.path.join(PROJECT_ROOT, 'data/tokenizer_java_unique')
-MODEL_RESULTS_DIR = os.path.join(PROJECT_ROOT, '../data_csvs')
+MODEL_RESULTS_DIR = os.path.join(PROJECT_ROOT, '../results')
 
 def get_smell_path(language, smell, dimension='1d'):
     base = CS_TOKENIZED_DATA if language.lower() in ['csharp', 'cs', 'c#'] else JAVA_TOKENIZED_DATA
