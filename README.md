@@ -1,4 +1,4 @@
-# Replication Package v3
+# Replication Package
 
 This replication package contains a clean, sanitized, and complete pipeline to reproduce the core results of our study on the robustness of deep learning-based code smell detection models.
 
