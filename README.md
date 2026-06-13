@@ -1,3 +1,31 @@
+# R2 Update
+
+1. The RQ2 and RQ3 training scripts have been updated.
+
+**Files updated:**
+- `training_scripts/rq2/run_rq2_ae.py`
+- `training_scripts/rq2/run_rq2_codebert.py`
+- `training_scripts/rq2/run_vllm_rq2_qwen.py`
+- `training_scripts/rq3/run_rq3_rnn.py`
+- `training_scripts/rq3/run_rq3_codebert.py`
+- `training_scripts/rq3/run_rq3_ae.py`
+- `training_scripts/rq3/run_vllm_rq3_qwen.py`
+
+2. The original obfuscation-based semantic attack (renaming variables to random identifiers like `v_123_name`) has been replaced with a **synonym-substitution** approach using the NLTK WordNet lexical database.
+
+**New behavior:**
+- Splits camelCase/PascalCase identifiers into constituent words (e.g., `ProcessData` -> `["process", "data"]`).
+- Queries WordNet for semantically similar synonyms.
+- Reassembles substituted words back into camelCase/PascalCase matching the original naming convention (e.g., `ProcessData` -> `HandleInformation`, `reader` -> `accessor`, `data` -> `information`, `path` -> `location`).
+- Maintains a file-level consistent mapping so every occurrence of the same identifier within a file is replaced identically.
+- Skips language keywords, strings, and comments.
+
+**Files updated:**
+- `data_curation_scripts/attacks/java_semantic_attack.py`
+- `data_curation_scripts/attacks/csharp_semantic_attack.py`
+
+
+
 # Replication Package
 
 This replication package contains a clean, sanitized, and complete pipeline to reproduce the core results of our study on the robustness of deep learning-based code smell detection models.
