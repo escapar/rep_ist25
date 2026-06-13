@@ -11,7 +11,8 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, get_linear_schedule_with_warmup
 from torch.optim import AdamW
-from sklearn.metrics import f1_score, roc_auc_score, matthews_corrcoef, accuracy_score
+from sklearn.metrics import f1_score, roc_auc_score, matthews_corrcoef, accuracy_score, precision_recall_curve
+
 MAX_LEN = 512
 BATCH_SIZE = 16
 LR = 2e-05
@@ -23,7 +24,6 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 
 class SmellDataset(Dataset):
-
     def __init__(self, files, labels, tokenizer, max_len):
         self.files = files
         self.labels = labels
@@ -44,50 +44,52 @@ class SmellDataset(Dataset):
         encoding = self.tokenizer(code, add_special_tokens=True, max_length=self.max_len, padding='max_length', truncation=True, return_attention_mask=True, return_tensors='pt')
         return {'input_ids': encoding['input_ids'].flatten(), 'attention_mask': encoding['attention_mask'].flatten(), 'labels': torch.tensor(label, dtype=torch.long)}
 
-def load_data(lang, smell, mode, smoke=False):
-    with open('../config/dataset_splits.json', 'r') as f:
-        subset = json.load(f)[lang][smell]
-    clean_base = f'data/{lang.lower()}_subset_unique/{smell}'
+def load_data_rq2(lang, smell, mode, smoke=False):
+    config_path = os.path.join(os.path.dirname(__file__), '../config/dataset_splits.json')
+    with open(config_path, 'r') as f:
+        json_key = 'CSharp' if lang == 'CSharp' else 'Java'
+        subset = json.load(f)[json_key][smell]
+    clean_lang = 'csharp' if lang == 'CSharp' else 'java'
+    clean_base = f'data/{clean_lang}_subset_unique/{smell}'
     if lang == 'CSharp':
-        adv_base = f'data/attack_v2_cs_{mode}/{smell}'
+        adv_base = f'data/synonym_attack_raw/CSharp/{mode}/{smell}'
     else:
-        adv_base = f'data/attack_v2_{mode}/{smell}'
+        adv_base = f'data/synonym_attack_raw/Java/{mode}/{smell}'
     pos_files = subset['Positive']
     neg_files = subset['Negative']
-    random.shuffle(pos_files)
-    random.shuffle(neg_files)
     pos_train_names = pos_files[:int(0.7 * len(pos_files))]
     neg_train_names = neg_files[:int(0.7 * len(neg_files))]
     train_limit = 10 if smoke else 5000
-    n_train = min(len(pos_train_names), len(neg_train_names), train_limit)
-    train_files = [os.path.join(clean_base, 'Positive', f) for f in pos_train_names[:n_train]] + [os.path.join(clean_base, 'Negative', f) for f in neg_train_names[:n_train]]
-    train_labels = [1] * n_train + [0] * n_train
+    n_train_pos = min(len(pos_train_names), train_limit)
+    n_train_neg = min(len(neg_train_names), train_limit)
+    train_files = []
+    train_labels = []
+    for f in pos_train_names[:n_train_pos]:
+        p = os.path.join(clean_base, 'Positive', f)
+        if os.path.exists(p):
+            train_files.append(p)
+            train_labels.append(1)
+    for f in neg_train_names[:n_train_neg]:
+        p = os.path.join(clean_base, 'Negative', f)
+        if os.path.exists(p):
+            train_files.append(p)
+            train_labels.append(0)
     pos_eval_names = pos_files[int(0.7 * len(pos_files)):]
     neg_eval_names = neg_files[int(0.7 * len(neg_files)):]
     eval_limit = 10 if smoke else 150000 if smell in ['ComplexMethod', 'ComplexConditional'] else 50000
     eval_files = []
     eval_labels = []
-    if not os.path.exists(adv_base):
-        print(f'Warning: Adv base {adv_base} does not exist!')
     for f in pos_eval_names:
         p = os.path.join(adv_base, 'Positive', f)
-        if not os.path.exists(p):
-            for ext in ['.code', '.java', '.cs']:
-                alt_p = os.path.splitext(p)[0] + ext
-                if os.path.exists(alt_p):
-                    p = alt_p
-                    break
+        if not os.path.exists(p) and p.endswith('.code'):
+            p = p.replace('.code', '.java')
         if os.path.exists(p):
             eval_files.append(p)
             eval_labels.append(1)
     for f in neg_eval_names:
         p = os.path.join(adv_base, 'Negative', f)
-        if not os.path.exists(p):
-            for ext in ['.code', '.java', '.cs']:
-                alt_p = os.path.splitext(p)[0] + ext
-                if os.path.exists(alt_p):
-                    p = alt_p
-                    break
+        if not os.path.exists(p) and p.endswith('.code'):
+            p = p.replace('.code', '.java')
         if os.path.exists(p):
             eval_files.append(p)
             eval_labels.append(0)
@@ -119,7 +121,7 @@ def eval_model(model, data_loader, device):
     probs = []
     real_values = []
     with torch.no_grad():
-        for d in tqdm(data_loader, desc='Evaluating (Adv)'):
+        for d in tqdm(data_loader, desc='Evaluating'):
             input_ids = d['input_ids'].to(device)
             attention_mask = d['attention_mask'].to(device)
             labels = d['labels'].to(device)
@@ -131,17 +133,10 @@ def eval_model(model, data_loader, device):
     return (np.array(probs), np.array(real_values))
 
 def run_rq2_codebert(lang, smell, mode, smoke=False):
-    res_file = f'../results/rq2_codebert_{smell}.csv'
-    if os.path.exists(res_file):
-        with open(res_file, 'r') as f:
-            for line in f:
-                if f'{lang},{smell},{mode}' in line:
-                    print(f'Skipping {lang} {smell} {mode} - result already exists in {res_file}')
-                    return
     print(f'\n--- RQ2 CodeBERT: {lang} {smell} [{mode}] ---')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    (train_f, train_l, eval_f, eval_l) = load_data(lang, smell, mode, smoke)
-    print(f'Data: {len(train_f)} Clean Train, {len(eval_f)} Adversarial Eval')
+    (train_f, train_l, eval_f, eval_l) = load_data_rq2(lang, smell, mode, smoke)
+    print(f'Data: {len(train_f)} Clean Train, {len(eval_f)} Adv Eval')
     if not eval_f:
         print('No adversarial eval data found!')
         return
@@ -150,7 +145,6 @@ def run_rq2_codebert(lang, smell, mode, smoke=False):
     eval_ds = SmellDataset(eval_f, eval_l, tokenizer, MAX_LEN)
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
     eval_loader = DataLoader(eval_ds, batch_size=BATCH_SIZE)
-    print('Re-fine-tuning on Clean Training Set to recreate RQ1 model state...')
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2).to(device)
     optimizer = AdamW(model.parameters(), lr=LR)
     total_steps = len(train_loader) * (1 if smoke else EPOCHS)
@@ -158,11 +152,10 @@ def run_rq2_codebert(lang, smell, mode, smoke=False):
     for epoch in range(1 if smoke else EPOCHS):
         loss = train_epoch(model, train_loader, optimizer, device, scheduler)
         print(f'Epoch {epoch + 1} Loss: {loss:.4f}')
-    print('Evaluating on Adversarial Test Set...')
+    print('Evaluating on adversarial test set...')
     (probs, labels) = eval_model(model, eval_loader, device)
     preds = (probs > 0.7).astype(int)
     f1_fixed = f1_score(labels, preds)
-    from sklearn.metrics import precision_recall_curve
     try:
         (prec, rec, thresh) = precision_recall_curve(labels, probs)
         f1s = 2 * (prec * rec) / (prec + rec + 1e-09)
@@ -175,10 +168,12 @@ def run_rq2_codebert(lang, smell, mode, smoke=False):
         auc = 0.0
     mcc = matthews_corrcoef(labels, preds)
     acc = accuracy_score(labels, preds)
-    print(f'RESULT: {lang} {smell} CodeBERT [{mode}] -> F1(fixed): {f1_fixed:.4f}, F1(max): {f1_max:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
-    res_file = f'../results/rq2_codebert_{smell}.csv'
+    print(f'RESULT: {lang} {smell} RQ2 CodeBERT [{mode}] -> F1(fixed): {f1_fixed:.4f}, F1(max): {f1_max:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
+    res_file = os.path.join(os.path.abspath('../results'), f'rq2_codebert_{smell}.csv')
+    os.makedirs(os.path.dirname(res_file), exist_ok=True)
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{f1_fixed},{f1_max},{auc},{mcc},{acc}\n')
+
 if __name__ == '__main__':
     lang = sys.argv[1]
     smell = sys.argv[2]

@@ -9,62 +9,32 @@ import numpy as np
 from tqdm import tqdm
 from vllm import LLM, SamplingParams
 from sklearn.metrics import f1_score, roc_auc_score, matthews_corrcoef, accuracy_score
-MODEL_PATH = os.path.abspath('qwen_local_final')
-SUBSET_JSON = '../config/dataset_splits.json'
+
+MODEL_PATH = 'models/qwen_local_final'
+SUBSET_JSON = 'config/dataset_splits.json'
+OUT_DIR = os.path.abspath('../results')
 LIMIT = 100
 RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
 
-def run_rq3_qwen_inference(lang, smell, mode, ratio, limit=LIMIT):
-    print(f'\n--- [vLLM] RQ3 Qwen Defense (ICL): {lang} {smell} [{mode}], Ratio: {ratio} ---')
-    print(f'Loading vLLM model from {MODEL_PATH}...')
-    llm = LLM(model=MODEL_PATH, tensor_parallel_size=1, trust_remote_code=True, gpu_memory_utilization=0.45, max_model_len=4096, enforce_eager=True)
-    sampling_params = SamplingParams(temperature=0.0, max_tokens=200)
-    with open(SUBSET_JSON, 'r') as f:
-        subset = json.load(f)[lang][smell]
-    clean_base = f'data/{lang.lower()}_subset_unique/{smell}'
-    if lang == 'CSharp':
-        adv_base = f'data/attack_v2_cs_{mode}/{smell}'
-    else:
-        adv_base = f'data/attack_v2_{mode}/{smell}'
-    eval_samples = []
-    icl_pool = {'clean_pos': [], 'clean_neg': [], 'adv_pos': [], 'adv_neg': []}
-    for cat in ['Positive', 'Negative']:
-        label = 1 if cat == 'Positive' else 0
-        files = subset[cat]
-        train_files = files[:int(0.7 * len(files))]
-        eval_files = files[int(0.7 * len(files)):]
-        for f in train_files:
-            clean_p = os.path.join(clean_base, cat, f)
-            adv_p = os.path.join(adv_base, cat, f)
-            if not os.path.exists(adv_p):
-                for ext in ['.code', '.java', '.cs']:
-                    alt_p = os.path.splitext(adv_p)[0] + ext
-                    if os.path.exists(alt_p):
-                        adv_p = alt_p
-                        break
-            if os.path.exists(clean_p):
-                if label == 1:
-                    icl_pool['clean_pos'].append(clean_p)
-                else:
-                    icl_pool['clean_neg'].append(clean_p)
-            if os.path.exists(adv_p):
-                if label == 1:
-                    icl_pool['adv_pos'].append(adv_p)
-                else:
-                    icl_pool['adv_neg'].append(adv_p)
-        if len(eval_files) > limit:
-            eval_files = random.sample(eval_files, limit)
-        for f in eval_files:
-            clean_p = os.path.join(clean_base, cat, f)
-            if os.path.exists(clean_p):
-                eval_samples.append((clean_p, label))
-    random.shuffle(eval_samples)
-    SMELL_DEFS = {'ComplexMethod': 'A method that has high cyclomatic complexity, excessive lines of code, and too many decision points (if/else, loops).', 'ComplexConditional': 'A conditional statement (if/while) that contains a deeply nested or excessively long logical expression with multiple AND/OR operators.', 'FeatureEnvy': 'A method that accesses the data or methods of another class more than its own, suggesting it should be moved.', 'MultifacetedAbstraction': 'A class that has more than one responsibility, violating the Single Responsibility Principle, often indicated by disjoint sets of methods and fields (low cohesion).'}
-    smell_def = SMELL_DEFS.get(smell, '')
+SMELL_DEFS = {
+    'ComplexMethod': 'A method that has high cyclomatic complexity, excessive lines of code, and too many decision points (if/else, loops).',
+    'ComplexConditional': 'A conditional statement (if/while) that contains a deeply nested or excessively long logical expression with multiple AND/OR operators.',
+    'FeatureEnvy': 'A method that accesses the data or methods of another class more than its own, suggesting it should be moved.',
+    'MultifacetedAbstraction': 'A class that has more than one responsibility, violating the Single Responsibility Principle, often indicated by disjoint sets of methods and fields (low cohesion).'
+}
+
+def evaluate_and_save(llm, sampling_params, lang, smell, mode, ratio, eval_samples, icl_pool, smell_def, res_file, label_prefix):
+    if os.path.exists(res_file):
+        with open(res_file, 'r') as f:
+            for line in f:
+                if f'{lang},{smell},{mode},{ratio}' in line:
+                    print(f'Skipping {label_prefix} {lang} {smell} {mode} ratio={ratio} - result exists.')
+                    return
+
     prompts = []
     labels = []
-    print(f'Preparing {len(eval_samples)} clean evaluation samples with ICL defense...')
+    print(f'Preparing {len(eval_samples)} {label_prefix} evaluation samples with ICL defense...')
     for (file_path, label) in eval_samples:
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -108,16 +78,104 @@ def run_rq3_qwen_inference(lang, smell, mode, ratio, limit=LIMIT):
     acc = accuracy_score(labels, preds)
     mcc = matthews_corrcoef(labels, preds)
     auc = roc_auc_score(labels, probs) if len(set(labels)) > 1 else 0.0
-    print(f'RESULT: {lang} {smell} RQ3 Qwen [{mode}, ratio={ratio}] -> F1: {f1:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
-    res_file = f'../results/rq3_qwen_{smell}.csv'
+    print(f'RESULT: {lang} {smell} RQ3 Qwen {label_prefix} [{mode}, ratio={ratio}] -> F1: {f1:.4f}, AUC: {auc:.4f}, MCC: {mcc:.4f}, ACC: {acc:.4f}')
+    os.makedirs(OUT_DIR, exist_ok=True)
     with open(res_file, 'a') as f:
         f.write(f'{lang},{smell},{mode},{ratio},{f1},{auc},{mcc},{acc}\n')
+
+def run_rq3_qwen_inference(llm, sampling_params, lang, smell, mode, ratio, limit=LIMIT):
+    print(f'\n--- [vLLM] RQ3 Qwen Defense (ICL): {lang} {smell} [{mode}], Ratio: {ratio} ---')
+    with open(SUBSET_JSON, 'r') as f:
+        subset = json.load(f)[lang][smell]
+    clean_base = f'data/{lang.lower()}_subset_unique/{smell}'
+    if lang == 'CSharp':
+        adv_base = f'data/synonym_attack_raw/CSharp/{mode}/{smell}'
+    else:
+        adv_base = f'data/synonym_attack_raw/Java/{mode}/{smell}'
+
+    icl_pool = {'clean_pos': [], 'clean_neg': [], 'adv_pos': [], 'adv_neg': []}
+    eval_files_all = []
+    for cat in ['Positive', 'Negative']:
+        label = 1 if cat == 'Positive' else 0
+        files = subset[cat]
+        train_files = files[:int(0.7 * len(files))]
+        eval_files = files[int(0.7 * len(files)):]
+        eval_files_all.extend([(f, cat, label) for f in eval_files])
+        for f in train_files:
+            clean_p = os.path.join(clean_base, cat, f)
+            adv_p = os.path.join(adv_base, cat, f)
+            if not os.path.exists(adv_p):
+                for ext in ['.code', '.java', '.cs']:
+                    alt_p = os.path.splitext(adv_p)[0] + ext
+                    if os.path.exists(alt_p):
+                        adv_p = alt_p
+                        break
+            if os.path.exists(clean_p):
+                if label == 1:
+                    icl_pool['clean_pos'].append(clean_p)
+                else:
+                    icl_pool['clean_neg'].append(clean_p)
+            if os.path.exists(adv_p):
+                if label == 1:
+                    icl_pool['adv_pos'].append(adv_p)
+                else:
+                    icl_pool['adv_neg'].append(adv_p)
+
+    if len(eval_files_all) > limit:
+        eval_files_all = random.sample(eval_files_all, limit)
+
+    clean_eval_samples = []
+    for f, cat, label in eval_files_all:
+        clean_p = os.path.join(clean_base, cat, f)
+        if os.path.exists(clean_p):
+            clean_eval_samples.append((clean_p, label))
+    random.shuffle(clean_eval_samples)
+
+    adv_eval_samples = []
+    for f, cat, label in eval_files_all:
+        adv_p = os.path.join(adv_base, cat, f)
+        if not os.path.exists(adv_p):
+            for ext in ['.code', '.java', '.cs']:
+                alt_p = os.path.splitext(adv_p)[0] + ext
+                if os.path.exists(alt_p):
+                    adv_p = alt_p
+                    break
+        if os.path.exists(adv_p):
+            adv_eval_samples.append((adv_p, label))
+    random.shuffle(adv_eval_samples)
+
+    smell_def = SMELL_DEFS.get(smell, '')
+
+    evaluate_and_save(llm, sampling_params, lang, smell, mode, ratio, clean_eval_samples, icl_pool, smell_def,
+                      os.path.join(OUT_DIR, f'rq3_clean_qwen_{smell}.csv'), 'clean')
+
+    evaluate_and_save(llm, sampling_params, lang, smell, mode, ratio, adv_eval_samples, icl_pool, smell_def,
+                      os.path.join(OUT_DIR, f'rq3_qwen_{smell}.csv'), 'adv')
+
 if __name__ == '__main__':
-    lang = sys.argv[1]
-    smell = sys.argv[2]
-    mode = sys.argv[3]
-    ratio = float(sys.argv[4])
-    limit = LIMIT
+    lang = sys.argv[1] if len(sys.argv) > 1 else 'Java'
+    mode = sys.argv[2] if len(sys.argv) > 2 else 'synonym'
+    ratio = float(sys.argv[3]) if len(sys.argv) > 3 else 0.1
+    limit = int(sys.argv[4]) if len(sys.argv) > 4 else LIMIT
     if os.environ.get('SMOKE_TEST') == '1':
         limit = 8
-    run_rq3_qwen_inference(lang, smell, mode, ratio, limit=limit)
+
+    print('Loading vLLM model once...')
+    llm = LLM(
+        model=MODEL_PATH,
+        tensor_parallel_size=1,
+        trust_remote_code=True,
+        gpu_memory_utilization=0.45,
+        max_model_len=4096,
+        enforce_eager=True
+    )
+    sampling_params = SamplingParams(temperature=0.0, max_tokens=1024)
+
+    smells = ['ComplexMethod', 'ComplexConditional', 'FeatureEnvy', 'MultifacetedAbstraction']
+    for smell in smells:
+        try:
+            run_rq3_qwen_inference(llm, sampling_params, lang, smell, mode, ratio, limit)
+        except Exception as e:
+            print(f'ERROR on {smell}: {e}')
+            import traceback
+            traceback.print_exc()
