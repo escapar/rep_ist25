@@ -1,3 +1,7 @@
+# R3 Update
+
+The three aggregate result files (`rq2_results.csv`, `rq3_adv_results.csv`, `rq3_clean_results.csv`) is updated:  An `MCC` (Matthews Correlation Coefficient) column has been added. 
+
 # R2 Update
 
 1. The RQ2 and RQ3 training scripts have been updated.
